@@ -260,6 +260,7 @@ fn bump_release_versions<'a>(
         let greater_release = release_version > current_version;
         if greater_release {
             common::set_version(cmd_args.dry_run, crt, &release_version.clone())?;
+            // fixme: does not updating the in-memory representation lead to version mismatch errors?
         }
 
         let crate_release_heading_name = format!("{}", release_version);
@@ -292,7 +293,18 @@ fn bump_release_versions<'a>(
         }
     }
 
-    ws.update_lockfile(cmd_args.dry_run)?;
+    // ws.update_lockfile(cmd_args.dry_run)?;
+    ws.cargo_check(Some(
+        vec![
+            vec!["--offline"],
+            if cmd_args.dry_run {
+                vec!["--locked"]
+            } else {
+                vec![]
+            },
+        ]
+        .concat(),
+    ))?;
 
     info!("running consistency checks after changing the versions...");
     publish_paths_to_crates_io(

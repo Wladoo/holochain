@@ -1009,7 +1009,14 @@ impl<'a> ReleaseWorkspace<'a> {
         let mut cmd = std::process::Command::new("cargo");
         cmd.current_dir(self.root()).args(
             &[
-                vec!["update", "--workspace", "--offline", "--verbose"],
+                vec![
+                    "update",
+                    "--workspace",
+                    "--offline",
+                    "--verbose",
+                    // "--all-features",
+                    // "--all-targets",
+                ],
                 if dry_run { vec!["--dry-run"] } else { vec![] },
             ]
             .concat(),
@@ -1027,13 +1034,13 @@ impl<'a> ReleaseWorkspace<'a> {
         Ok(())
     }
 
-    pub(crate) fn cargo_check(&'a self, offline: bool) -> Fallible<()> {
+    pub(crate) fn cargo_check(&'a self, check_args: Option<Vec<&str>>) -> Fallible<()> {
         let mut cmd = std::process::Command::new("cargo")
             .current_dir(self.root())
             .args(
                 &[
                     vec!["check", "--workspace", "--all-targets", "--all-features"],
-                    if offline { vec!["--offline"] } else { vec![] },
+                    check_args.unwrap_or_default(),
                 ]
                 .concat(),
             )

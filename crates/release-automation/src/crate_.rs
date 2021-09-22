@@ -161,7 +161,7 @@ pub(crate) fn apply_dev_versions<'a>(
 
         if !dry_run {
             // this checks consistency and also updates the Cargo.lock file(s)
-            ws.cargo_check(false)?;
+            ws.cargo_check(None)?;
 
             if commit {
                 ws.git_add_all_and_commit(&commit_msg, None)?;
@@ -314,7 +314,7 @@ pub(crate) fn fixup_releases<'a>(
 
         if !dry_run {
             // this checks consistency and also updates the Cargo.lock file(s)
-            ws.cargo_check(false)?;
+            ws.cargo_check(None)?;
 
             if commit {
                 ws.git_add_all_and_commit(&commit_msg, None)?;

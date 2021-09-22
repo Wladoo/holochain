@@ -124,7 +124,7 @@ pub(crate) fn get_dependency_version(manifest_path: &Path, name: &str) -> Fallib
     bail!("version not found")
 }
 
-fn load_from_file(path: &Path) -> Fallible<String> {
+pub(crate) fn load_from_file(path: &Path) -> Fallible<String> {
     let mut file = std::fs::File::open(path)?;
     let mut s = String::new();
     file.read_to_string(&mut s)?;

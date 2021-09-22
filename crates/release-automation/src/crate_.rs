@@ -80,12 +80,23 @@ pub(crate) struct CrateFixupReleases {
 }
 
 #[derive(Debug, StructOpt)]
+pub(crate) struct CrateFixupDocumentation {
+    #[structopt(long)]
+    pub(crate) dry_run: bool,
+
+    #[structopt(long)]
+    pub(crate) commit: bool,
+}
+
+#[derive(Debug, StructOpt)]
 pub(crate) enum CrateCommands {
     SetVersion(CrateSetVersionArgs),
     ApplyDevVersions(CrateApplyDevVersionsArgs),
 
     /// check the latest (or given) release for crates that aren't published, remove their tags, and bump their version.
     FixupReleases(CrateFixupReleases),
+
+    FixupDocumentation(CrateFixupDocumentation),
 }
 
 pub(crate) fn cmd(args: &crate::cli::Args, cmd_args: &CrateArgs) -> CommandResult {
@@ -118,6 +129,10 @@ pub(crate) fn cmd(args: &crate::cli::Args, cmd_args: &CrateArgs) -> CommandResul
             subcmd_args.dry_run,
             subcmd_args.commit,
         ),
+
+        CrateCommands::FixupDocumentation(subcmd_args) => {
+            fixup_documentation(&ws, subcmd_args.dry_run, subcmd_args.commit)
+        }
     }
 }
 
@@ -319,6 +334,79 @@ pub(crate) fn fixup_releases<'a>(
             if commit {
                 ws.git_add_all_and_commit(&commit_msg, None)?;
             }
+        }
+    }
+
+    Ok(())
+}
+
+pub(crate) fn fixup_documentation<'a>(
+    ws: &'a ReleaseWorkspace<'a>,
+    dry_run: bool,
+    commit: bool,
+) -> Fallible<()> {
+    use std::io::Write;
+
+    let mut changed_manifests = vec![];
+
+    for (name, manifest_path) in ws.members()?.iter().map(|m| (m.name(), m.manifest_path())) {
+        {
+            let desired_documentation_url = format!("https://docs.rs/{}", name);
+            let manifest = crate::common::load_from_file(manifest_path)?;
+            let mut manifest: toml_edit::Document = manifest.parse()?;
+
+            if let toml_edit::Item::Value(toml_edit::Value::String(documentation)) =
+                &manifest["package"]["docuemntation"]
+            {
+                log::debug!("[{}] documentation is '{}'", name, documentation);
+                if documentation.to_string() == desired_documentation_url {
+                    continue;
+                }
+            }
+
+            log::debug!(
+                "[{}] setting documentation to '{}'",
+                name,
+                desired_documentation_url
+            );
+
+            if !dry_run {
+                let temp_manifest_path = manifest_path
+                    .parent()
+                    .ok_or_else(|| {
+                        anyhow::anyhow!("couldn't get parent of path {}", manifest_path.display())
+                    })?
+                    .join("Cargo.toml.work");
+                manifest["package"]["documentation"] = toml_edit::value(desired_documentation_url);
+
+                let mut file_out = std::fs::File::create(&temp_manifest_path)?;
+                file_out.write_all(manifest.to_string_in_original_order().as_bytes())?;
+
+                std::fs::rename(temp_manifest_path, manifest_path)?;
+
+                let stripped_path = manifest_path.strip_prefix(ws.root())?;
+
+                changed_manifests.push(format!("- {}\n", stripped_path.display()));
+            }
+        }
+    }
+
+    info!("changed {} manfiests", changed_manifests.len());
+
+    if !changed_manifests.is_empty() {
+        let commit_msg = indoc::formatdoc! {r#"
+                fixing manifest documentation urls
+
+                the following manifests were changed:
+
+                {}
+            "#, changed_manifests.into_iter().collect::<String>(),
+        };
+
+        info!("creating commit with message '{}' ", commit_msg);
+
+        if !dry_run && commit {
+            ws.git_add_all_and_commit(&commit_msg, None)?;
         }
     }
 

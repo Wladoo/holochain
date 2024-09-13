@@ -298,6 +298,8 @@ fn wasm_getrandom(buf: &mut [u8]) -> Result<(), getrandom::Error> {
 #[cfg(all(target_arch = "wasm32", target_os = "unknown"))]
 getrandom::register_custom_getrandom!(wasm_getrandom);
 
+pub mod agent;
+
 /// Capability claims and grants.
 ///
 /// Every exposed function in Holochain uses capability grants/claims to secure
@@ -581,3 +583,6 @@ pub mod clone;
 
 /// Tools for working with migrations from one DNA to another.
 mod migrate;
+
+/// Look up validation receipts for actions that a local agent has authored.
+pub mod validation_receipt;

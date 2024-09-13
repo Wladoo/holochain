@@ -8,10 +8,10 @@ use holo_hash::AgentPubKey;
 use holo_hash::AnyDhtHash;
 use holo_hash::AnyDhtHashPrimitive;
 use holo_hash::EntryHash;
+use holochain_chc::ChcImpl;
 use holochain_nonce::Nonce256Bits;
 use holochain_p2p::actor;
 use holochain_p2p::event::CountersigningSessionNegotiationMessage;
-use holochain_p2p::ChcImpl;
 use holochain_p2p::HolochainP2pDnaT;
 use holochain_p2p::HolochainP2pError;
 use holochain_sqlite::rusqlite::Transaction;
@@ -142,7 +142,7 @@ impl HolochainP2pDnaT for PassThroughNetwork {
         agent: AgentPubKey,
         query: QueryFilter,
         options: actor::GetActivityOptions,
-    ) -> actor::HolochainP2pResult<Vec<AgentActivityResponse<ActionHash>>> {
+    ) -> actor::HolochainP2pResult<Vec<AgentActivityResponse>> {
         let mut out = Vec::new();
         for db in &self.envs {
             let r = authority::handle_get_agent_activity(
@@ -396,7 +396,7 @@ pub fn commit_chain<Kind: DbKindT>(
                 let timestamp = Timestamp::now();
                 let op_type = op_lite.get_type();
                 let (_, hash) =
-                    DhtOpUniqueForm::op_hash(op_type, op.action.hashed.content.clone()).unwrap();
+                    ChainOpUniqueForm::op_hash(op_type, op.action.hashed.content.clone()).unwrap();
                 insert_action(txn, &op.action).unwrap();
                 insert_op_lite(
                     txn,

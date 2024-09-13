@@ -9,9 +9,11 @@ use holochain_wasmer_host::prelude::*;
 use std::sync::Arc;
 use wasmer::RuntimeError;
 
-#[allow(clippy::extra_unused_lifetimes)]
-#[tracing::instrument(skip(_ribosome, call_context))]
-pub fn must_get_entry<'a>(
+#[cfg_attr(
+    feature = "instrument",
+    tracing::instrument(skip(_ribosome, call_context))
+)]
+pub fn must_get_entry(
     _ribosome: Arc<impl RibosomeT>,
     call_context: Arc<CallContext>,
     input: MustGetEntryInput,
@@ -26,9 +28,17 @@ pub fn must_get_entry<'a>(
             // timeouts must be handled by the network
             tokio_helper::block_forever_on(async move {
                 let workspace = call_context.host_context.workspace();
+                use crate::core::ribosome::ValidateHostAccess;
                 let cascade = match call_context.host_context {
-                    HostContext::Validate(_) => {
-                        CascadeImpl::from_workspace_stores(workspace.stores(), None)
+                    HostContext::Validate(ValidateHostAccess { is_inline, .. }) => {
+                        if is_inline {
+                            CascadeImpl::from_workspace_and_network(
+                                &workspace,
+                                call_context.host_context.network().clone(),
+                            )
+                        } else {
+                            CascadeImpl::from_workspace_stores(workspace.stores(), None)
+                        }
                     }
                     _ => CascadeImpl::from_workspace_and_network(
                         &workspace,
@@ -46,7 +56,6 @@ pub fn must_get_entry<'a>(
                         HostContext::EntryDefs(_)
                         | HostContext::GenesisSelfCheckV1(_)
                         | HostContext::GenesisSelfCheckV2(_)
-                        | HostContext::MigrateAgent(_)
                         | HostContext::PostCommit(_)
                         | HostContext::ZomeCall(_) => Err(wasm_error!(WasmErrorInner::Host(
                             format!("Failed to get EntryHashed {}", entry_hash)

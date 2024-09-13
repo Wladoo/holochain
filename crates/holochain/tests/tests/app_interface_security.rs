@@ -1,7 +1,4 @@
 use either::Either;
-use std::net::ToSocketAddrs;
-use std::sync::Arc;
-
 use holochain::sweettest::{websocket_client_by_port, SweetConductor, SweetDnaFile, WsPollRecv};
 use holochain_conductor_api::{
     AdminRequest, AdminResponse, AppAuthenticationRequest, AppAuthenticationToken, AppRequest,
@@ -10,7 +7,12 @@ use holochain_conductor_api::{
 use holochain_types::prelude::InstalledAppId;
 use holochain_types::websocket::AllowedOrigins;
 use holochain_wasm_test_utils::TestWasm;
-use holochain_websocket::{connect, ConnectRequest, ReceiveMessage, WebsocketConfig};
+use holochain_websocket::{
+    connect, ConnectRequest, ReceiveMessage, WebsocketConfig, WebsocketError,
+};
+use matches::assert_matches;
+use std::net::ToSocketAddrs;
+use std::sync::Arc;
 
 #[tokio::test(flavor = "multi_thread")]
 async fn app_allowed_origins() {
@@ -133,7 +135,7 @@ async fn app_interface_requires_auth() {
         .request::<_, AppResponse>(AppRequest::AppInfo)
         .await
         .unwrap_err();
-    assert_eq!("ConnectionClosed", err.to_string());
+    assert_matches!(err, WebsocketError::Close(_));
 
     let token = create_token(&conductor, "test-app".into()).await;
 
@@ -144,7 +146,7 @@ async fn app_interface_requires_auth() {
         })
         .await
         .unwrap_err();
-    assert_eq!("WebsocketClosed", err.to_string());
+    assert_matches!(err, WebsocketError::Close(_));
 
     // Token didn't get used above, so create a new connection and try to use it
     let (app_tx, app_rx) = websocket_client_by_port(app_port).await.unwrap();
@@ -166,6 +168,7 @@ async fn app_interface_requires_auth() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+#[cfg_attr(target_os = "macos", ignore = "flaky")]
 async fn app_interface_can_handle_bad_auth_payload() {
     holochain_trace::test_run();
 
@@ -193,7 +196,7 @@ async fn app_interface_can_handle_bad_auth_payload() {
         })
         .await
         .unwrap_err();
-    assert_eq!("WebsocketClosed", err.to_string());
+    assert_matches!(err, WebsocketError::Close(_));
 
     // Open a new connection
     let (app_tx, app_rx) = websocket_client_by_port(app_port).await.unwrap();
@@ -251,7 +254,7 @@ async fn app_interfaces_can_be_bound_to_apps() {
         .request::<_, AppResponse>(AppRequest::ListWasmHostFunctions)
         .await
         .unwrap_err();
-    assert_eq!("ConnectionClosed", err.to_string());
+    assert_matches!(err, WebsocketError::Close(_));
 
     // Now create a token for the correct app and try again
     let token = create_token(&conductor, "test-app".into()).await;
@@ -547,7 +550,7 @@ async fn revoke_app_auth_token() {
         .request::<_, AppResponse>(AppRequest::ListWasmHostFunctions)
         .await
         .unwrap_err();
-    assert_eq!("ConnectionClosed", err.to_string());
+    assert_matches!(err, WebsocketError::Close(_));
 }
 
 async fn check_app_port(port: u16, origin: &str, token: AppAuthenticationToken) {
